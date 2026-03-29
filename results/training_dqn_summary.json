@@ -1,0 +1,23 @@
+{
+  "algorithm": "dqn",
+  "log_prefix": "training_dqn",
+  "total_steps": 2,
+  "lambda_1": 0.6,
+  "lambda_2": 0.008,
+  "reward_formula": "lambda_1 * JFI(R_n, R_f) + lambda_2 * ASIR",
+  "summary_window": 2,
+  "reward_mean": 1.0664722919464111,
+  "reward_std": 0.0025983452796936035,
+  "jfi_mean": 0.9800377488136292,
+  "jfi_std": 0.009676158428192139,
+  "asir_mean": 59.80621337890625,
+  "asir_std": 0.4009132385253906,
+  "r_n_mean": 45.597389221191406,
+  "r_f_mean": 34.535865783691406,
+  "rsum_mean": 80.13325500488281,
+  "ravg_mean": 40.066627502441406,
+  "loss_mean": 0.0,
+  "a_n_mean": 0.3050000071525574,
+  "a_f_mean": 0.3050000071525574,
+  "a_t_mean": 0.38999998569488525
+}

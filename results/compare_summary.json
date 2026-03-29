@@ -1,0 +1,12 @@
+{
+  "seed": 7,
+  "steps": 8,
+  "lambda_1": 0.6,
+  "lambda_2": 0.008,
+  "prefix_dqn": "training_dqn",
+  "prefix_ddpg": "training_ddpg",
+  "no_train": false,
+  "plot_path": "D:\\New folder (4)\\SidFiles\\Coding\\RE\\Wireless\\Paper5\\results\\compare.png",
+  "summary_dqn": "D:\\New folder (4)\\SidFiles\\Coding\\RE\\Wireless\\Paper5\\results\\training_dqn_summary.json",
+  "summary_ddpg": "D:\\New folder (4)\\SidFiles\\Coding\\RE\\Wireless\\Paper5\\results\\training_ddpg_summary.json"
+}

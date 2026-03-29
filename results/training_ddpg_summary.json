@@ -1,0 +1,23 @@
+{
+  "algorithm": "ddpg",
+  "log_prefix": "training_ddpg",
+  "total_steps": 2,
+  "lambda_1": 0.6,
+  "lambda_2": 0.008,
+  "reward_formula": "lambda_1 * JFI(R_n, R_f) + lambda_2 * ASIR",
+  "summary_window": 2,
+  "reward_mean": 1.0615265369415283,
+  "reward_std": 0.005357563495635986,
+  "jfi_mean": 0.9907170534133911,
+  "jfi_std": 0.004215657711029053,
+  "asir_mean": 58.387046813964844,
+  "asir_std": 0.9858722686767578,
+  "r_n_mean": 46.20793914794922,
+  "r_f_mean": 38.34175109863281,
+  "rsum_mean": 84.54969024658203,
+  "ravg_mean": 42.274845123291016,
+  "loss_mean": 0.0,
+  "a_n_mean": 0.2768746018409729,
+  "a_f_mean": 0.36889106035232544,
+  "a_t_mean": 0.35423433780670166
+}

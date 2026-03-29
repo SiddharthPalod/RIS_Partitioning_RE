@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.utils as nn_utils
 
 from agents.ddpg import Actor, Critic, ReplayBuffer
 from agents.dqn import DQN
@@ -284,7 +285,19 @@ def run_ddpg(
     total_steps: int = 8000,
     log_prefix: str = DEFAULT_LOG_PREFIX_DDPG,
     env_kwargs: dict[str, Any] | None = None,
+    *,
+    entropy_coef: float = 0.025,
+    noise_scale_start: float = 0.22,
+    noise_scale_end: float = 0.06,
+    actor_lr: float = 1.5e-4,
+    grad_clip_critic: float = 1.0,
+    grad_clip_actor: float = 0.5,
 ) -> None:
+    """DDPG on the RIS partition simplex (actor outputs softmax).
+
+    Entropy regularization fights collapse to a corner (e.g. all mass on one user).
+    Exploration noise decays so early steps probe the simplex, later steps trust the policy.
+    """
     env = SimpleISACRISEnv(**(env_kwargs or {}))
     state_dim = env.state_dim
     action_dim = 3
@@ -297,19 +310,19 @@ def run_ddpg(
     critic_target = Critic(state_dim=state_dim, action_dim=action_dim)
     critic_target.load_state_dict(critic.state_dict())
 
-    actor_optimizer = torch.optim.Adam(actor.parameters(), lr=1e-4)
+    actor_optimizer = torch.optim.Adam(actor.parameters(), lr=actor_lr)
     critic_optimizer = torch.optim.Adam(critic.parameters(), lr=1e-3)
 
     replay_buffer = ReplayBuffer(capacity=20_000)
     batch_size = 64
     gamma = 0.99
     tau = 0.01
-    noise_scale = 0.10
 
     state = env.reset().astype(np.float32)
     episode = 0
     last_actor_loss = 0.0
     last_critic_loss = 0.0
+    last_policy_entropy = 0.0
 
     rewards_hist: list[float] = []
     losses_hist: list[float] = []
@@ -323,6 +336,9 @@ def run_ddpg(
     ravg_hist: list[float] = []
 
     for step in range(total_steps):
+        denom = max(total_steps - 1, 1)
+        noise_scale = noise_scale_start + (noise_scale_end - noise_scale_start) * (step / denom)
+
         state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         with torch.no_grad():
             action = actor(state_t).squeeze(0).cpu().numpy()
@@ -352,14 +368,23 @@ def run_ddpg(
             critic_loss = torch.mean((current_q - target_q) ** 2)
             critic_optimizer.zero_grad()
             critic_loss.backward()
+            if grad_clip_critic > 0:
+                nn_utils.clip_grad_norm_(critic.parameters(), grad_clip_critic)
             critic_optimizer.step()
             last_critic_loss = float(critic_loss.detach())
 
-            actor_loss = -critic(states_b, actor(states_b)).mean()
+            probs = actor(states_b)
+            policy_entropy = -(probs * torch.log(probs + 1e-8)).sum(dim=-1).mean()
+            q_pi = critic(states_b, probs).mean()
+            # Maximize Q + entropy_coef * H(pi)  <=>  minimize -(Q + coef * H)
+            actor_loss = -(q_pi + entropy_coef * policy_entropy)
             actor_optimizer.zero_grad()
             actor_loss.backward()
+            if grad_clip_actor > 0:
+                nn_utils.clip_grad_norm_(actor.parameters(), grad_clip_actor)
             actor_optimizer.step()
             last_actor_loss = float(actor_loss.detach())
+            last_policy_entropy = float(policy_entropy.detach())
 
             with torch.no_grad():
                 for tgt, src in zip(actor_target.parameters(), actor.parameters()):
@@ -384,10 +409,11 @@ def run_ddpg(
 
         if step % 20 == 0:
             print(
-                f"Step {step:05d} | ep={episode:03d} | reward={reward:.4f} | "
+                f"Step {step:05d} | ep={episode:03d} | ns={noise_scale:.3f} | reward={reward:.4f} | "
                 f"jfi={info['jfi']:.4f} | asir={info['asir']:.2f} | "
                 f"a=[{info['a_n']:.2f},{info['a_f']:.2f},{info['a_t']:.2f}] | "
-                f"critic_loss={last_critic_loss:.6f} | actor_loss={last_actor_loss:.6f}"
+                f"critic_loss={last_critic_loss:.6f} | actor_loss={last_actor_loss:.6f} | "
+                f"H_pi={last_policy_entropy:.3f}"
             )
 
         if done:

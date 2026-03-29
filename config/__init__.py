@@ -1,4 +1,4 @@
-from ml.config.paths import (
+from config.paths import (
     DEFAULT_LOG_PREFIX_DDPG,
     DEFAULT_LOG_PREFIX_DQN,
     PAPER5_ROOT,

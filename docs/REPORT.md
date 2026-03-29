@@ -2,13 +2,13 @@
 
 ## Scope
 
-Everything below refers only to the **Paper5** folder: the **`ml/`** package (`config`, `env`, `agents`, `training`, `scripts`), root launchers (`main.py`, `compare.py`, `visual.py`), and `README.md`. See **`docs/STRUCTURE.md`** for paths. ECE / analytical \(R_n, R_f\), ASIR are still **placeholders** until you plug in your real channel and sensing model.
+Everything below refers only to the **Paper5** folder: top-level packages (`config`, `env`, `agents`, `training`), root scripts (`main.py`, `compare.py`, `visual.py`), and `README.md`. See **`docs/STRUCTURE.md`** for paths. ECE / analytical \(R_n, R_f\), ASIR are still **placeholders** until you plug in your real channel and sensing model.
 
 ---
 
 ## 1. What the code implements now
 
-### Environment (`ml/env/simple_isac_env.py`, class `SimpleISACRISEnv`)
+### Environment (`env/simple_isac_env.py`, class `SimpleISACRISEnv`)
 
 - **State (6D):** `[h_n, h_f, h_t, a_n, a_f, a_t]`.
 - **Discrete actions (DQN):** six \(\Delta\)-transfers (default \(\Delta=0.05\)), clip each zone to `[min_partition, 1]`, renormalize to the simplex.
@@ -29,13 +29,13 @@ r_t = \lambda_1 \, \mathrm{JFI}(R_n, R_f) + \lambda_2 \, \mathrm{ASIR}
 
 - After each step, **channels are resampled** (`_sample_channels()`), so \((h_n,h_f,h_t)\) change **every timestep** while partitions evolve within an episode (until `max_steps`).
 
-### Training (`ml/training/loops.py`, CLI `ml/scripts/train.py` or root `main.py`)
+### Training (`training/loops.py`, CLI `main.py`)
 
 - **DQN:** MLP Q-network, ε-greedy, replay, periodic hard target sync.
 - **DDPG:** softmax actor on the 3-way partition, critic on `[state ∥ action]`, replay, soft target updates (`tau`), Dirichlet exploration noise on the simplex.
 - **CLI:** `--algo dqn|ddpg`, `--steps`, **`--lambda1`**, **`--lambda2`** (passed into the env).
 
-### Logging (`ml/config/paths.py`, `results/`)
+### Logging (`config/paths.py`, `results/`)
 
 - All `.npy` series and **`{prefix}_summary.json`** files are written under **`Paper5/results/`** (created automatically).
 - Runs do not overwrite each other across algorithms:

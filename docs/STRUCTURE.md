@@ -1,29 +1,26 @@
 # Paper5 folder map (information architecture)
 
 ```text
-Paper5/
-├── ml/                    # Python package — all importable code
-│   ├── config/                # Paths, RESULTS_DIR, log prefixes
-│   ├── env/                     # Simulation: SimpleISACRISEnv
-│   ├── agents/                  # DQN, DDPG (actor/critic/replay)
-│   ├── training/                # Training loops + npy/json export
-│   └── scripts/                 # CLIs (train, compare, visual)
-├── results/                     # Outputs only (npy, json, compare.png)
-├── main.py                      # Thin wrapper → ml.scripts.train
-├── compare.py                 # Thin wrapper → ml.scripts.compare
-├── visual.py                  # Thin wrapper → ml.scripts.visual
+Paper5/                         # Project root (cwd when you run Python)
+├── config/                     # Paths, RESULTS_DIR, log prefixes
+├── env/                        # Simulation: SimpleISACRISEnv
+├── agents/                     # DQN, DDPG (actor/critic/replay)
+├── training/                   # Training loops + npy/json export
+├── results/                    # Outputs only (npy, json, compare.png)
+├── main.py                     # Train DQN or DDPG
+├── compare.py                  # Train both + comparison plot
+├── visual.py                   # Plot logs from results/
 ├── README.md
-├── REPORT.md
-└── ...
+└── docs/
 ```
 
 **What to edit**
 
 | Goal | Location |
 |------|----------|
-| Channel model, reward definition, partitions | `ml/env/simple_isac_env.py` |
-| Network sizes / DQN / DDPG | `ml/agents/` |
-| Training hyperparameters, logging | `ml/training/loops.py` |
-| CLI flags | `ml/scripts/train.py` (and `compare.py` for compare) |
+| Channel model, reward definition, partitions | `env/simple_isac_env.py` |
+| Network sizes / DQN / DDPG | `agents/` |
+| Training hyperparameters, logging | `training/loops.py` |
+| CLI flags for training | `main.py` |
 
-Run from the **`Paper5`** directory so `import ml` resolves.
+Run from the **`Paper5`** directory (`python main.py`, `python compare.py`, etc.).

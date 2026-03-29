@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-# ml/config/paths.py -> parent.parent.parent = Paper5 repo root
-PAPER5_ROOT = Path(__file__).resolve().parent.parent.parent
+# Paper5/config/paths.py → parents: config → Paper5 (cwd / project root)
+PAPER5_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = PAPER5_ROOT / "results"
 
 DEFAULT_LOG_PREFIX_DQN = "training_dqn"

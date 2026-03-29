@@ -10,15 +10,15 @@ from typing import Any
 import numpy as np
 import torch
 
-from ml.agents.ddpg import Actor, Critic, ReplayBuffer
-from ml.agents.dqn import DQN
-from ml.config.paths import (
+from agents.ddpg import Actor, Critic, ReplayBuffer
+from agents.dqn import DQN
+from config.paths import (
     DEFAULT_LOG_PREFIX_DDPG,
     DEFAULT_LOG_PREFIX_DQN,
     RESULTS_DIR,
     ensure_results_dir,
 )
-from ml.env.simple_isac_env import SimpleISACRISEnv
+from env.simple_isac_env import SimpleISACRISEnv
 
 _SUMMARY_TAIL = 500
 

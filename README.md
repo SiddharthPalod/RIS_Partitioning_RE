@@ -15,19 +15,18 @@ See **`docs/STRUCTURE.md`** for a full folder map. In short:
 
 | Area | Package path |
 |------|----------------|
-| Paths & `results/` | `ml/config/paths.py` |
-| Environment & reward | `ml/env/simple_isac_env.py` |
-| DQN / DDPG networks | `ml/agents/` |
-| Training loops & saving | `ml/training/loops.py` |
-| Command-line tools | `ml/scripts/` (`train`, `compare`, `visual`) |
+| Paths & `results/` | `config/paths.py` |
+| Environment & reward | `env/simple_isac_env.py` |
+| DQN / DDPG networks | `agents/` |
+| Training loops & saving | `training/loops.py` |
+| Entry points | `main.py` (train), `compare.py`, `visual.py` |
 
-**Run from the `Paper5` directory** (so `import ml` works).
+**Run from the `Paper5` directory** (project root on Python’s import path).
 
-Equivalent ways to train:
+Train:
 
 ```bash
 python main.py --algo dqn
-python -m ml.scripts.train --algo dqn
 ```
 
 ## Files (documentation)
@@ -67,15 +66,13 @@ From `Paper5`:
 ```bash
 python main.py --algo dqn
 python main.py --algo ddpg
-# or
-python -m ml.scripts.train --algo dqn
 ```
 
 Optional:
 
 ```bash
 python main.py --algo ddpg --steps 12000
-python -m ml.scripts.train --lambda1 0.6 --lambda2 0.008
+python main.py --lambda1 0.6 --lambda2 0.008
 ```
 
 All outputs go under **`results/`** (auto-created):
@@ -95,20 +92,20 @@ Visualize one run:
 
 ```bash
 python visual.py --algo dqn
-python -m ml.scripts.visual --algo ddpg
+python visual.py --algo ddpg
 ```
 
 Compare both with the same seed (trains then plots):
 
 ```bash
 python compare.py --seed 42 --steps 8000
-python -m ml.scripts.compare --seed 42 --no-train
+python compare.py --seed 42 --no-train
 python compare.py --out -   # interactive plot only (no file)
 ```
 
 ## Notes
 
 Current equations are placeholder synthetic mappings for fast RL prototyping.
-You can replace channel sampling and metric equations in **`ml/env/simple_isac_env.py`** with your analytical model (SINR/outage/echo formulations) without changing the training loop.
+You can replace channel sampling and metric equations in **`env/simple_isac_env.py`** with your analytical model (SINR/outage/echo formulations) without changing the training loop.
 
 If you still have an old **`analytics/`** folder from a previous revision, move or delete it; all new runs write under **`results/`** only.

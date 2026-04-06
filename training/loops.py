@@ -20,6 +20,7 @@ from config.paths import (
     ensure_results_dir,
 )
 from env.simple_isac_env import SimpleISACRISEnv
+from env.isac_env import ISACRISEnv
 
 _SUMMARY_TAIL = 500
 
@@ -29,6 +30,14 @@ def _save_numpy_logs(prefix: str, **arrays: np.ndarray) -> None:
     base = RESULTS_DIR
     for name, arr in arrays.items():
         np.save(base / f"{prefix}_{name}.npy", arr)
+
+
+def _env_meta(env_kwargs: dict[str, Any] | None) -> dict[str, Any]:
+    env_kwargs = env_kwargs or {}
+    return {
+        "L": env_kwargs.get("L"),
+        "max_steps": env_kwargs.get("max_steps"),
+    }
 
 
 def _write_summary_json(
@@ -45,6 +54,7 @@ def _write_summary_json(
     r2: np.ndarray,
     rsum: np.ndarray,
     ravg: np.ndarray,
+    rsum_passive: np.ndarray | None = None,
 ) -> None:
     ensure_results_dir()
     n = len(rewards)
@@ -57,6 +67,7 @@ def _write_summary_json(
         "total_steps": total_steps,
         "lambda_1": env_kwargs.get("lambda_1"),
         "lambda_2": env_kwargs.get("lambda_2"),
+        **_env_meta(env_kwargs),
         "reward_formula": "lambda_1 * JFI(R_n, R_f) + lambda_2 * ASIR",
         "summary_window": N,
         "reward_mean": float(rewards[tail].mean()),
@@ -74,6 +85,9 @@ def _write_summary_json(
         "a_f_mean": float(partitions[tail, 1].mean()),
         "a_t_mean": float(partitions[tail, 2].mean()),
     }
+    if rsum_passive is not None and len(rsum_passive) == n:
+        summary["rsum_passive_mean"] = float(rsum_passive[tail].mean())
+        summary["rsum_passive_std"] = float(rsum_passive[tail].std())
     if n >= 1000:
         summary["reward_first_500"] = float(rewards[:500].mean())
         summary["reward_last_500"] = float(rewards[-500:].mean())
@@ -98,6 +112,9 @@ def _finalize_run(
     r2_hist: list,
     rsum_hist: list,
     ravg_hist: list,
+    r1_passive_hist: list | None = None,
+    r2_passive_hist: list | None = None,
+    rsum_passive_hist: list | None = None,
 ) -> None:
     env_kwargs = env_kwargs or {}
     r = np.array(rewards_hist, dtype=np.float32)
@@ -111,19 +128,28 @@ def _finalize_run(
     ra = np.array(ravg_hist, dtype=np.float32)
     act = np.array(actions_hist)
 
-    _save_numpy_logs(
-        log_prefix,
-        rewards=r,
-        losses=lo,
-        actions=act,
-        jfi=j,
-        asir=a,
-        partitions=p,
-        r1=r1,
-        r2=r2,
-        rsum=rs,
-        ravg=ra,
-    )
+    logs: dict[str, np.ndarray] = {
+        "rewards": r,
+        "losses": lo,
+        "actions": act,
+        "jfi": j,
+        "asir": a,
+        "partitions": p,
+        "r1": r1,
+        "r2": r2,
+        "rsum": rs,
+        "ravg": ra,
+    }
+    rsp: np.ndarray | None = None
+    if rsum_passive_hist is not None and len(rsum_passive_hist) == len(r):
+        rsp = np.array(rsum_passive_hist, dtype=np.float32)
+        logs["rsum_passive"] = rsp
+    if r1_passive_hist is not None and len(r1_passive_hist) == len(r):
+        logs["r1_passive"] = np.array(r1_passive_hist, dtype=np.float32)
+    if r2_passive_hist is not None and len(r2_passive_hist) == len(r):
+        logs["r2_passive"] = np.array(r2_passive_hist, dtype=np.float32)
+
+    _save_numpy_logs(log_prefix, **logs)
     _write_summary_json(
         log_prefix,
         algorithm,
@@ -138,6 +164,7 @@ def _finalize_run(
         r2,
         rs,
         ra,
+        rsp,
     )
 
 
@@ -146,7 +173,8 @@ def run_dqn(
     log_prefix: str = DEFAULT_LOG_PREFIX_DQN,
     env_kwargs: dict[str, Any] | None = None,
 ) -> None:
-    env = SimpleISACRISEnv(**(env_kwargs or {}))
+    # env = SimpleISACRISEnv(**(env_kwargs or {}))
+    env = ISACRISEnv(**(env_kwargs or {}))
     state_dim = env.state_dim
     n_actions = env.n_actions
 
@@ -154,16 +182,16 @@ def run_dqn(
     target_model = DQN(state_dim=state_dim, n_actions=n_actions)
     target_model.load_state_dict(model.state_dict())
     target_model.eval()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=5e-4)
 
     gamma = 0.99
     epsilon = 1.0
-    epsilon_decay = 0.995
+    epsilon_decay = 0.999
     epsilon_min = 0.05
 
     replay_buffer: deque = deque(maxlen=10_000)
     batch_size = 64
-    target_update_freq = 25
+    target_update_freq = 100
 
     def preprocess(state: np.ndarray) -> torch.Tensor:
         return torch.tensor(state, dtype=torch.float32)
@@ -183,6 +211,9 @@ def run_dqn(
     r2_hist: list[float] = []
     rsum_hist: list[float] = []
     ravg_hist: list[float] = []
+    r1_passive_hist: list[float] = []
+    r2_passive_hist: list[float] = []
+    rsum_passive_hist: list[float] = []
 
     for step in range(total_steps):
         q_values = model(state)
@@ -213,13 +244,16 @@ def run_dqn(
             q_vals = model(states_b)
             q_sa = q_vals.gather(1, actions_b.view(-1, 1)).squeeze(1)
 
+            # Double-DQN target: action from online net, value from target net.
             with torch.no_grad():
-                max_next_q = target_model(next_states_b).max(dim=1).values
-                target_q = rewards_b + gamma * max_next_q * (~dones_b)
+                next_actions = model(next_states_b).argmax(dim=1, keepdim=True)
+                next_q = target_model(next_states_b).gather(1, next_actions).squeeze(1)
+                target_q = rewards_b + gamma * next_q * (~dones_b)
 
-            loss = torch.mean((q_sa - target_q) ** 2)
+            loss = torch.nn.functional.smooth_l1_loss(q_sa, target_q)
             optimizer.zero_grad()
             loss.backward()
+            nn_utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             last_loss = loss.detach()
 
@@ -242,6 +276,9 @@ def run_dqn(
         r2_hist.append(r2)
         rsum_hist.append(rsum)
         ravg_hist.append(ravg)
+        r1_passive_hist.append(float(info["r_n_passive"]))
+        r2_passive_hist.append(float(info["r_f_passive"]))
+        rsum_passive_hist.append(float(info["rsum_passive"]))
 
         if step % 20 == 0:
             print(
@@ -258,11 +295,12 @@ def run_dqn(
             episode += 1
             state = preprocess(env.reset())
 
+    _ek = {**(env_kwargs or {}), "L": env.L, "max_steps": env.max_steps}
     _finalize_run(
         log_prefix,
         "dqn",
         total_steps,
-        env_kwargs,
+        _ek,
         rewards_hist,
         losses_hist,
         actions_hist,
@@ -273,6 +311,9 @@ def run_dqn(
         r2_hist,
         rsum_hist,
         ravg_hist,
+        r1_passive_hist,
+        r2_passive_hist,
+        rsum_passive_hist,
     )
 
     print(
@@ -286,9 +327,9 @@ def run_ddpg(
     log_prefix: str = DEFAULT_LOG_PREFIX_DDPG,
     env_kwargs: dict[str, Any] | None = None,
     *,
-    entropy_coef: float = 0.025,
+    entropy_coef: float = 0.06,
     noise_scale_start: float = 0.22,
-    noise_scale_end: float = 0.06,
+    noise_scale_end: float = 0.10,
     actor_lr: float = 1.5e-4,
     grad_clip_critic: float = 1.0,
     grad_clip_actor: float = 0.5,
@@ -298,7 +339,8 @@ def run_ddpg(
     Entropy regularization fights collapse to a corner (e.g. all mass on one user).
     Exploration noise decays so early steps probe the simplex, later steps trust the policy.
     """
-    env = SimpleISACRISEnv(**(env_kwargs or {}))
+    # env = SimpleISACRISEnv(**(env_kwargs or {}))
+    env = ISACRISEnv(**(env_kwargs or {}))
     state_dim = env.state_dim
     action_dim = 3
 
@@ -334,6 +376,9 @@ def run_ddpg(
     r2_hist: list[float] = []
     rsum_hist: list[float] = []
     ravg_hist: list[float] = []
+    r1_passive_hist: list[float] = []
+    r2_passive_hist: list[float] = []
+    rsum_passive_hist: list[float] = []
 
     for step in range(total_steps):
         denom = max(total_steps - 1, 1)
@@ -406,6 +451,9 @@ def run_ddpg(
         r2_hist.append(r2)
         rsum_hist.append(rsum)
         ravg_hist.append(ravg)
+        r1_passive_hist.append(float(info["r_n_passive"]))
+        r2_passive_hist.append(float(info["r_f_passive"]))
+        rsum_passive_hist.append(float(info["rsum_passive"]))
 
         if step % 20 == 0:
             print(
@@ -420,11 +468,12 @@ def run_ddpg(
             episode += 1
             state = env.reset().astype(np.float32)
 
+    _ek = {**(env_kwargs or {}), "L": env.L, "max_steps": env.max_steps}
     _finalize_run(
         log_prefix,
         "ddpg",
         total_steps,
-        env_kwargs,
+        _ek,
         rewards_hist,
         losses_hist,
         actions_hist,
@@ -435,6 +484,9 @@ def run_ddpg(
         r2_hist,
         rsum_hist,
         ravg_hist,
+        r1_passive_hist,
+        r2_passive_hist,
+        rsum_passive_hist,
     )
 
     print(

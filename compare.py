@@ -1,5 +1,5 @@
 """
-Train DQN and DDPG with the same seed and reward weights, then plot reward / JFI / sum-rate.
+Train DQN and DDPG with the same seed and reward weights, then plot reward / JFI / partition-weighted sum.
 Artifacts live under ``Paper5/results/``.
 """
 
@@ -21,6 +21,7 @@ from config.paths import (
     RESULTS_DIR,
     ensure_results_dir,
 )
+from figure_utils import add_partition_card
 from training.loops import run_ddpg, run_dqn
 
 
@@ -64,15 +65,45 @@ def plot_comparison(
     base = RESULTS_DIR
     r_dqn = np.load(base / f"{prefix_dqn}_rewards.npy")
     j_dqn = np.load(base / f"{prefix_dqn}_jfi.npy")
-    s_dqn = np.load(base / f"{prefix_dqn}_rsum.npy")
+    p_dqn = np.load(base / f"{prefix_dqn}_partitions.npy")
+    rn_dqn = np.load(base / f"{prefix_dqn}_r1.npy")
+    rf_dqn = np.load(base / f"{prefix_dqn}_r2.npy")
+    asir_dqn = np.load(base / f"{prefix_dqn}_asir.npy")
 
     r_ddpg = np.load(base / f"{prefix_ddpg}_rewards.npy")
     j_ddpg = np.load(base / f"{prefix_ddpg}_jfi.npy")
-    s_ddpg = np.load(base / f"{prefix_ddpg}_rsum.npy")
+    p_ddpg = np.load(base / f"{prefix_ddpg}_partitions.npy")
+    rn_ddpg = np.load(base / f"{prefix_ddpg}_r1.npy")
+    rf_ddpg = np.load(base / f"{prefix_ddpg}_r2.npy")
+    asir_ddpg = np.load(base / f"{prefix_ddpg}_asir.npy")
 
     n = min(len(r_dqn), len(r_ddpg))
-    r_dqn, j_dqn, s_dqn = r_dqn[:n], j_dqn[:n], s_dqn[:n]
-    r_ddpg, j_ddpg, s_ddpg = r_ddpg[:n], j_ddpg[:n], s_ddpg[:n]
+    r_dqn, j_dqn = r_dqn[:n], j_dqn[:n]
+    r_ddpg, j_ddpg = r_ddpg[:n], j_ddpg[:n]
+    p_dqn, rn_dqn, rf_dqn, asir_dqn = (
+        p_dqn[:n],
+        rn_dqn[:n],
+        rf_dqn[:n],
+        asir_dqn[:n],
+    )
+    p_ddpg, rn_ddpg, rf_ddpg, asir_ddpg = (
+        p_ddpg[:n],
+        rn_ddpg[:n],
+        rf_ddpg[:n],
+        asir_ddpg[:n],
+    )
+
+    # a_n R_n + a_f R_f + a_t ASIR
+    w_dqn = (
+        p_dqn[:, 0] * rn_dqn
+        + p_dqn[:, 1] * rf_dqn
+        + p_dqn[:, 2] * asir_dqn
+    )
+    w_ddpg = (
+        p_ddpg[:, 0] * rn_ddpg
+        + p_ddpg[:, 1] * rf_ddpg
+        + p_ddpg[:, 2] * asir_ddpg
+    )
 
     def smooth_line(y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         if smooth == "ema":
@@ -91,7 +122,13 @@ def plot_comparison(
     for ax, y_dqn, y_ddpg, title, ylabel in [
         (axes[0], r_dqn, r_ddpg, "Reward", r"$r_t = \lambda_1 \mathrm{JFI} + \lambda_2 \mathrm{ASIR}$"),
         (axes[1], j_dqn, j_ddpg, "JFI$(R_n, R_f)$", "JFI"),
-        (axes[2], s_dqn, s_ddpg, "Sum rate $R_n + R_f$", "Rate"),
+        (
+            axes[2],
+            w_dqn,
+            w_ddpg,
+            r"Partition-weighted sum $a_n R_n + a_f R_f + a_t \mathrm{ASIR}$",
+            "Weighted sum",
+        ),
     ]:
         if show_raw:
             ax.plot(x, y_dqn, alpha=0.25, color="tab:blue", linewidth=0.6, label="DQN (raw)")
@@ -106,9 +143,17 @@ def plot_comparison(
         ax.set_xlabel("Step")
         ax.set_ylabel(ylabel)
         ax.grid(True, alpha=0.25)
-        ax.legend(loc="best", fontsize=8)
+        ax.legend(loc="lower left", fontsize=8)
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 0.78, 1])
+    add_partition_card(
+        fig,
+        base,
+        prefix_dqn,
+        prefix_ddpg,
+        loc="upper right",
+        fontsize=7.0,
+    )
     if out_path is not None:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(out_path, dpi=150, bbox_inches="tight")

@@ -99,6 +99,7 @@ Compare both with the same seed (trains then plots):
 
 ```bash
 python compare.py --seed 42 --steps 8000
+python compare.py --seed 42 --steps 8000 --lambda1 0.6 --lambda2 0.008
 python compare.py --seed 42 --no-train
 python compare.py --out -   # interactive plot only (no file)
 ```

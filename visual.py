@@ -40,8 +40,18 @@ def main() -> None:
     jfi = np.load(base / f"{prefix}_jfi.npy")
     asir = np.load(base / f"{prefix}_asir.npy")
     partitions = np.load(base / f"{prefix}_partitions.npy")  # [steps, 3]
+    r1 = np.load(base / f"{prefix}_r1.npy")
+    r2 = np.load(base / f"{prefix}_r2.npy")
+    rsum = np.load(base / f"{prefix}_rsum.npy")
 
-    fig, axes = plt.subplots(3, 2, figsize=(12, 10))
+    # Partition-weighted "sum rate": a_n R_n + a_f R_f + a_t ASIR
+    a_n, a_f, a_t = partitions[:, 0], partitions[:, 1], partitions[:, 2]
+    w_rn = a_n * r1
+    w_rf = a_f * r2
+    w_asir = a_t * asir
+    wsum = w_rn + w_rf + w_asir
+
+    fig, axes = plt.subplots(4, 2, figsize=(12, 14))
     fig.suptitle(f"Paper5 logs: {prefix}", fontsize=11)
     ax = axes.ravel()
 
@@ -65,8 +75,9 @@ def main() -> None:
         ax[2].legend()
 
     ax[3].plot(jfi, color="tab:green", label="JFI")
-    ax[3].set_ylim(0.0, 1.05)
-    ax[3].set_title("Communication Fairness")
+    # N=2 comm users: Jain index in [1/2, 1], not [0, 1]
+    ax[3].set_ylim(0.49, 1.02)
+    ax[3].set_title(r"JFI$(R_n,R_f)$ — Jain, $J\in[1/2,1]$ for $N=2$")
     ax[3].legend()
 
     ax[4].plot(asir, color="tab:orange")
@@ -78,6 +89,18 @@ def main() -> None:
     ax[5].set_title("RIS Partitions")
     ax[5].set_ylim(0.0, 1.0)
     ax[5].legend()
+
+    ax[6].plot(w_rn, alpha=0.7, label=r"$a_n R_n$")
+    ax[6].plot(w_rf, alpha=0.7, label=r"$a_f R_f$")
+    ax[6].plot(w_asir, alpha=0.7, label=r"$a_t \mathrm{ASIR}$")
+    ax[6].plot(wsum, color="black", linewidth=1.2, label=r"$a_n R_n + a_f R_f + a_t \mathrm{ASIR}$")
+    ax[6].set_title("Partition-weighted rates")
+    ax[6].legend(loc="best", fontsize=8)
+
+    ax[7].plot(rsum, alpha=0.5, label=r"$R_n + R_f$ (unweighted)")
+    ax[7].plot(wsum, alpha=0.9, label=r"$a_n R_n + a_f R_f + a_t \mathrm{ASIR}$")
+    ax[7].set_title("Sum rate comparison")
+    ax[7].legend(loc="best", fontsize=8)
 
     for a in ax:
         a.grid(True, alpha=0.2)

@@ -7,7 +7,6 @@ __pycache__/
 # Virtual environments
 .venv/
 venv/
-env/
 
 # Packaging
 *.egg-info/
@@ -32,8 +31,5 @@ Thumbs.db
 results/*.npy
 
 # Generated plots in results/
-results/*.png
-
-# Ad-hoc test figures at repo root
-compare_test.png
-*_test.png
+results/*.csv
+results/*.json

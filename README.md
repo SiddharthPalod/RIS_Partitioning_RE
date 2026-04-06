@@ -48,16 +48,16 @@ Partitions are clipped to stay above a minimum share and renormalized to sum to 
 ## Reward
 
 \[
-r_t = \lambda_1 \, \mathrm{JFI}(R_n, R_f) + \lambda_2 \, \mathrm{ASIR}
+r_t = w_c \, \widehat{(R_n + R_f)} + w_r \, \widehat{\mathrm{ASIR}}
 \]
 
-- `JFI` is Jain fairness over the two communication rates `(R_n, R_f)`.
-- `ASIR` enters **without** extra normalization (tune `lambda_2` for scale).
+- Uses explicit communication/sensing trade-off weights (`w_c`, `w_r`).
+- Both terms are normalized by reference scales (`max_rsum`, `max_asir`) to prevent one term from dominating due to units/magnitude.
 
-Defaults (CLI `--lambda1` / `--lambda2`):
+Defaults (CLI `--w-c` / `--w-r`):
 
-- `lambda_1 = 0.6`
-- `lambda_2 = 0.008` (roughly comparable magnitude to the old `0.4 * ASIR/50` when ASIR \(\approx 50\))
+- `w_c = 0.7`
+- `w_r = 0.3`
 
 ## Run
 
@@ -72,7 +72,7 @@ Optional:
 
 ```bash
 python main.py --algo ddpg --steps 12000
-python main.py --lambda1 0.6 --lambda2 0.008
+python main.py --w-c 0.7 --w-r 0.3 --max-rsum 9e-10 --max-asir 250
 ```
 
 All outputs go under **`results/`** (auto-created):
@@ -84,7 +84,7 @@ All outputs go under **`results/`** (auto-created):
 
 **JSON summaries** (written at the end of each training run):
 
-- `training_dqn_summary.json`, `training_ddpg_summary.json` — windowed means/stds and metadata (`lambda_1`, `lambda_2`, steps).
+- `training_dqn_summary.json`, `training_ddpg_summary.json` — windowed means/stds and metadata (`w_c`, `w_r`, normalization scales, steps).
 
 **Compare script** also writes `results/compare.png` (unless `--out -` for interactive only) and `results/compare_summary.json`.
 
@@ -99,7 +99,8 @@ Compare both with the same seed (trains then plots):
 
 ```bash
 python compare.py --seed 42 --steps 8000
-python compare.py --seed 42 --steps 8000 --lambda1 0.6 --lambda2 0.008
+python compare.py --seed 42 --steps 8000 --w-c 0.7 --w-r 0.3 --max-rsum 9e-10 --max-asir 250
+python compare.py --steps 8000 --seed 42 --w-c 0.35 --w-r 0.20 --w-f 0.15 --w-qos-f 20000 --rf-min 6e-5 --w-qos-s 5000 --asir-min 7.5e-5 --max-rsum 1.2e-3 --max-asir 8.5e-4
 python compare.py --seed 42 --no-train
 python compare.py --out -   # interactive plot only (no file)
 ```

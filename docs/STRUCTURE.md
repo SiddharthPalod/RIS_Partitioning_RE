@@ -14,8 +14,6 @@ Paper5/                         # Project root (cwd when you run Python)
 └── docs/
 ```
 
-**What to edit**
-
 | Goal | Location |
 |------|----------|
 | Channel model, reward definition, partitions | `env/simple_isac_env.py` |

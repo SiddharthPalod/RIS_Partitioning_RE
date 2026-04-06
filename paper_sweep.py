@@ -53,8 +53,15 @@ def main() -> None:
         help="Which algorithm(s) to run per grid point.",
     )
     parser.add_argument("--seed", type=int, default=42, help="Base seed (same for both algos at a grid point).")
-    parser.add_argument("--lambda1", type=float, default=0.6)
-    parser.add_argument("--lambda2", type=float, default=0.008)
+    parser.add_argument("--w-c", "--lambda1", type=float, default=0.55, dest="w_c")
+    parser.add_argument("--w-r", "--lambda2", type=float, default=0.25, dest="w_r")
+    parser.add_argument("--w-f", type=float, default=0.20, dest="w_f")
+    parser.add_argument("--w-qos-f", type=float, default=0.0, dest="w_qos_f")
+    parser.add_argument("--w-qos-s", type=float, default=0.0, dest="w_qos_s")
+    parser.add_argument("--rf-min", type=float, default=0.0, dest="rf_min")
+    parser.add_argument("--asir-min", type=float, default=0.0, dest="asir_min")
+    parser.add_argument("--max-rsum", type=float, default=1.2e-3, dest="max_rsum")
+    parser.add_argument("--max-asir", type=float, default=8.5e-4, dest="max_asir")
     parser.add_argument(
         "--out-json",
         type=str,
@@ -72,8 +79,15 @@ def main() -> None:
     for L in args.L:
         for steps in args.steps:
             env_kwargs: dict[str, Any] = {
-                "lambda_1": args.lambda1,
-                "lambda_2": args.lambda2,
+                "w_c": args.w_c,
+                "w_r": args.w_r,
+                "w_f": args.w_f,
+                "w_qos_f": args.w_qos_f,
+                "w_qos_s": args.w_qos_s,
+                "rf_min": args.rf_min,
+                "asir_min": args.asir_min,
+                "max_rsum": args.max_rsum,
+                "max_asir": args.max_asir,
                 "L": int(L),
             }
             row: dict[str, Any] = {"L": int(L), "steps": int(steps), "seed": args.seed}
@@ -96,8 +110,15 @@ def main() -> None:
             print(f"Done L={L} steps={steps} -> {row}")
 
     payload = {
-        "lambda_1": args.lambda1,
-        "lambda_2": args.lambda2,
+        "w_c": args.w_c,
+        "w_r": args.w_r,
+        "w_f": args.w_f,
+        "w_qos_f": args.w_qos_f,
+        "w_qos_s": args.w_qos_s,
+        "rf_min": args.rf_min,
+        "asir_min": args.asir_min,
+        "max_rsum": args.max_rsum,
+        "max_asir": args.max_asir,
         "results": results,
     }
     with open(out_path, "w", encoding="utf-8") as f:

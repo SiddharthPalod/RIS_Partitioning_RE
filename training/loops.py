@@ -65,10 +65,17 @@ def _write_summary_json(
         "algorithm": algorithm,
         "log_prefix": prefix,
         "total_steps": total_steps,
-        "lambda_1": env_kwargs.get("lambda_1"),
-        "lambda_2": env_kwargs.get("lambda_2"),
+        "w_c": env_kwargs.get("w_c", env_kwargs.get("lambda_1")),
+        "w_r": env_kwargs.get("w_r", env_kwargs.get("lambda_2")),
+        "w_f": env_kwargs.get("w_f"),
+        "w_qos_f": env_kwargs.get("w_qos_f"),
+        "w_qos_s": env_kwargs.get("w_qos_s"),
+        "rf_min": env_kwargs.get("rf_min"),
+        "asir_min": env_kwargs.get("asir_min"),
+        "max_rsum": env_kwargs.get("max_rsum"),
+        "max_asir": env_kwargs.get("max_asir"),
         **_env_meta(env_kwargs),
-        "reward_formula": "lambda_1 * JFI(R_n, R_f) + lambda_2 * ASIR",
+        "reward_formula": "w_c * normalize(R_n + R_f) + w_r * normalize(ASIR) + w_f * JFI(R_n, R_f) - w_qos_f*max(0, rf_min-R_f) - w_qos_s*max(0, asir_min-ASIR)",
         "summary_window": N,
         "reward_mean": float(rewards[tail].mean()),
         "reward_std": float(rewards[tail].std()),
@@ -186,8 +193,9 @@ def run_dqn(
 
     gamma = 0.99
     epsilon = 1.0
-    epsilon_decay = 0.999
+    epsilon_decay = 0.995
     epsilon_min = 0.05
+    warmup_steps = 500 
 
     replay_buffer: deque = deque(maxlen=10_000)
     batch_size = 64
@@ -231,7 +239,7 @@ def run_dqn(
         )
         state = next_state
 
-        if len(replay_buffer) >= batch_size:
+        if len(replay_buffer) >= batch_size and global_step > warmup_steps:
             batch = random.sample(replay_buffer, batch_size)
             states_b, actions_b, rewards_b, next_states_b, dones_b = zip(*batch)
 
@@ -257,7 +265,7 @@ def run_dqn(
             optimizer.step()
             last_loss = loss.detach()
 
-            if global_step % target_update_freq == 0:
+            if global_step > 0 and global_step % target_update_freq == 0:
                 target_model.load_state_dict(model.state_dict())
 
         epsilon = max(epsilon_min, epsilon * epsilon_decay)
@@ -280,7 +288,7 @@ def run_dqn(
         r2_passive_hist.append(float(info["r_f_passive"]))
         rsum_passive_hist.append(float(info["rsum_passive"]))
 
-        if step % 20 == 0:
+        if step % 200 == 0:
             print(
                 f"Step {step:05d} | ep={episode:03d} | eps={epsilon:.3f} | "
                 f"action={action} | reward={reward:.4f} | jfi={info['jfi']:.4f} | "
@@ -327,9 +335,9 @@ def run_ddpg(
     log_prefix: str = DEFAULT_LOG_PREFIX_DDPG,
     env_kwargs: dict[str, Any] | None = None,
     *,
-    entropy_coef: float = 0.06,
-    noise_scale_start: float = 0.22,
-    noise_scale_end: float = 0.10,
+    entropy_coef: float = 0.01,
+    noise_scale_start: float = 0.12,
+    noise_scale_end: float = 0.02,
     actor_lr: float = 1.5e-4,
     grad_clip_critic: float = 1.0,
     grad_clip_actor: float = 0.5,
@@ -390,7 +398,7 @@ def run_ddpg(
 
         noise = np.random.dirichlet(np.ones(action_dim)).astype(np.float32)
         action = (1.0 - noise_scale) * action + noise_scale * noise
-        action = np.clip(action, env.min_partition, 1.0)
+        action = np.maximum(action, env.min_partition)
         action = action / np.sum(action)
 
         next_state, reward, done, info = env.step_continuous(action)
@@ -459,6 +467,7 @@ def run_ddpg(
             print(
                 f"Step {step:05d} | ep={episode:03d} | ns={noise_scale:.3f} | reward={reward:.4f} | "
                 f"jfi={info['jfi']:.4f} | asir={info['asir']:.2f} | "
+                f"rsn={info.get('rsum_norm', 0.0):.3f} | asn={info.get('asir_norm', 0.0):.3f} | "
                 f"a=[{info['a_n']:.2f},{info['a_f']:.2f},{info['a_t']:.2f}] | "
                 f"critic_loss={last_critic_loss:.6f} | actor_loss={last_actor_loss:.6f} | "
                 f"H_pi={last_policy_entropy:.3f}"
